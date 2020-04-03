@@ -1,0 +1,63 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+# based on an example from http://faculty.washington.edu/kenrice/sisg/SISG-08-06.pdf
+---
+title: "SimplePerm"
+author: "Paul M"
+date: "April 5, 2016"
+output: html_document
+---
+
+Generate two sets of test data: one with an effect ("alt.y"); one with no effect ("null.y"")
+```{r}
+set.seed(4321)
+carrier<-rep(c(0,1), c(100,200))  # Make up an example with 100 carriers and 200 controls
+null.y<-rnorm(300)   # our null data - here the value is independent of carrier status
+alt.y<-rnorm(300, mean=carrier/2)   # our alternate data - here the mean depends on carrier status
+```
+
+Since our data are normally distributed, in this case we know that the test statistic will actually have a t-distribution. So we can do the exact significance test as a benchmark
+```{r}
+t.test(null.y~carrier, var.equal=TRUE)
+t.test(alt.y~carrier, var.equal=TRUE)
+```
+
+Now lets work on the permutation test:
+```{r}
+# Here's the observed difference in mean between the two groups for the null data
+null.diff<-mean(null.y[carrier==1])-mean(null.y[carrier==0])
+# And here's the observed difference in mean between the two groups for our alternate data
+alt.diff<-mean(alt.y[carrier==1])-mean(alt.y[carrier==0])
+```
+
+Define a function to conduct a single permutation and report the difference in means for the permuted data
+```{r}
+one.test<-function(x,y){
+  xstar<-sample(x)  # samples without replacement - so this is producing a random permutation of x
+  m<-mean(y[xstar==1])-mean(y[xstar==0])  # then calcluate the difference in means between the two groups defined by the permuted x
+  return (m)
+}
+```
+
+Perform permutation test, with 1000 permutations, for each of the null and alt datasets, and then plot results
+```{r}
+many.truenull <- replicate(1000, one.test(carrier, null.y))
+many.falsenull <- replicate(1000, one.test(carrier, alt.y))
+
+# plot histograms of the resulting distribution of difference of means
+p1<-mean(abs(many.truenull) > abs(null.diff)) # the empirical p-value (for 2-sided test)
+hist(many.truenull,main = c("Null p-value~",p1),breaks=20)
+# add a line to it to indicate the 'observed' value
+abline(v=null.diff, lwd=2, col="purple")
+
+#text(x=-0.4,y=200,c("p-value=",mean/1000))
+p2<-mean(abs(many.falsenull) > abs(alt.diff))  # the empirical p-value
+hist(many.falsenull,main = c("Alt p-value~",p2),breaks=20)
+abline(v=alt.diff, lwd=2, col="purple")
+```
+
+Note that in the case of the alt data, none of the differences in the permuted
+datasets exceeded true difference, so all we can really say is that we estimate that p<1/1000.
